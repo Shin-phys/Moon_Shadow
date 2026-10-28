@@ -63,7 +63,7 @@ details summary{cursor:pointer;color:var(--accent);font-weight:700;font-size:13p
 ol{padding-left:20px;margin:6px 0}
 /* sim */
 #page-sim{overflow-y:auto;padding:14px}
-.simgrid{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(0,1fr);gap:14px;max-width:1400px;margin:0 auto}
+.simgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.45fr);gap:14px;max-width:1400px;margin:0 auto}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px}
 .card h2{font-size:15px;margin:0 0 8px}
 #side{width:100%;height:310px;display:block;background:#05070c;border-radius:6px}
@@ -71,6 +71,8 @@ ol{padding-left:20px;margin:6px 0}
 .ctl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:2px 16px;margin-top:8px}
 .out{margin-top:10px;padding:8px 10px;background:var(--panel2);border-radius:8px}
 .wide{grid-column:1/-1}
+.place{margin:0 0 8px;padding:6px 10px;border-radius:8px;background:rgba(92,200,255,.1);border:1px solid rgba(92,200,255,.35);font-size:13px}
+#disk{cursor:crosshair}
 .card ul{margin:4px 0;padding-left:20px}
 .card li{margin:3px 0}
 @media (max-width:1050px){
@@ -228,7 +230,25 @@ ol{padding-left:20px;margin:6px 0}
 <main id="page-sim" class="page" hidden>
   <div class="simgrid">
     <div class="card">
-      <h2>① 横から見た山と影</h2>
+      <h2>① 地球から見た月（場所を選ぶ）</h2>
+      <canvas id="disk"></canvas>
+      <div class="ctl">
+        <div>
+          <div class="row"><span class="k">月齢（日）</span><span class="v" id="simAgeVal">8.0</span></div>
+          <input type="range" id="simAge" min="0" max="29.5" step="0.1" value="8">
+        </div>
+        <div>
+          <div class="row"><span class="k">読み取れる最小の影（画素）</span><input type="number" class="num" id="simMin" value="3" step="0.5" min="0.5"></div>
+        </div>
+      </div>
+      <div class="out" id="diskInfo"></div>
+      <div class="btns"><button id="simClearSel">場所の選択を解除</button></div>
+      <div class="out" id="diskHover">月をクリックすると、その場所の太陽高度が②に反映されます。カーソルを置くだけでも値が出ます。</div>
+    </div>
+
+    <div class="card">
+      <h2>② その場所の山と影（横から見た図）</h2>
+      <div class="place" id="sidePlace"></div>
       <canvas id="side"></canvas>
       <div class="ctl">
         <div>
@@ -251,26 +271,11 @@ ol{padding-left:20px;margin:6px 0}
       <div class="out" id="sideOut"></div>
     </div>
 
-    <div class="card">
-      <h2>② 地球から見た月と「測れる帯」</h2>
-      <canvas id="disk"></canvas>
-      <div class="ctl">
-        <div>
-          <div class="row"><span class="k">月齢（日）</span><span class="v" id="simAgeVal">8.0</span></div>
-          <input type="range" id="simAge" min="0" max="29.5" step="0.1" value="8">
-        </div>
-        <div>
-          <div class="row"><span class="k">読み取れる最小の影（画素）</span><input type="number" class="num" id="simMin" value="3" step="0.5" min="0.5"></div>
-        </div>
-      </div>
-      <div class="out" id="diskInfo"></div>
-      <div class="out" id="diskHover">月の上にカーソルを置くと、その場所の太陽高度と影の長さを表示します。</div>
-    </div>
-
     <div class="card wide">
       <h2>原理の要点</h2>
       <ul>
         <li>山の高さ h、影の長さ L、太陽高度 α の関係は <b>h = L × tan α</b>（L = h ÷ tan α）。</li>
+        <li>ある場所の太陽高度は、その場所の緯度・経度と「いま太陽が月のどこの真上にあるか」で決まります（このシミュレーションでは sin α = cos(緯度) × cos(経度 − 太陽の真下の経度)）。太陽の真下の位置は月齢とともに動きます。</li>
         <li>太陽高度は場所ごとに違います。欠け際（ターミネーター）の上で 0°、昼側へ離れるほど高くなります。影が長く測りやすいのは、欠け際の近くだけです。</li>
         <li>欠け際は 1日に約12°（赤道付近で約370 km）動きます。日によって測れる場所が変わり、同じ山を別の日に測れば検算になります。</li>
         <li>影の長さを 1画素読み違えると、高さは「1画素の長さ × tan α」だけずれます。割合でいうと「1 ÷ 影の画素数」です。影が長いほど割合の誤差は小さくなります。</li>
@@ -626,12 +631,19 @@ $('#loadJson').addEventListener('change',e=>{const f=e.target.files[0];if(!f)ret
   r.readAsText(f);e.target.value='';});
 
 // ================= simulation =================
-const P={h:3,alt:5,slope:20,kmpp:4.5,age:8,minpx:3};
+const P={h:3,alt:5,slope:20,kmpp:4.5,age:8,minpx:3,sel:null};
 const side=$('#side'),sctx=side.getContext('2d'),disk=$('#disk'),dctx=disk.getContext('2d');
 function fitCanvas(cv){const d=window.devicePixelRatio||1;const w=cv.clientWidth,h=cv.clientHeight;if(!w||!h)return false;cv.width=Math.round(w*d);cv.height=Math.round(h*d);return true;}
 function simResize(){if(fitCanvas(side))drawSide();if(fitCanvas(disk))drawDisk();}
 new ResizeObserver(()=>{if(!$('#page-sim').hidden)simResize();}).observe($('#page-sim'));
-function simBind(id,key,dec){const el=$('#'+id),out=$('#'+id+'Val');el.addEventListener('input',()=>{const v=parseFloat(el.value);if(!(v>0)&&key!=='age')return;P[key]=v;if(out)out.textContent=v.toFixed(dec);drawSide();drawDisk();});}
+function simBind(id,key,dec){const el=$('#'+id),out=$('#'+id+'Val');el.addEventListener('input',()=>{const v=parseFloat(el.value);if(!(v>0)&&key!=='age')return;P[key]=v;if(out)out.textContent=v.toFixed(dec);
+  if(key==='alt')P.sel=null;          // 手動で太陽高度を動かしたら、場所の選択は外す
+  if(key==='age')syncAltFromSel();    // 場所を選んでいれば、月齢に合わせて太陽高度が変わる
+  drawSide();drawDisk();});}
+// 選んだ場所（月面の緯度・経度）での太陽高度。太陽は月の赤道の真上にあると仮定
+function altAt(lat,lon){const ls=lamS();return Math.asin(Math.cos(lat*DEG)*Math.cos(lon*DEG-ls))/DEG;}
+function syncAltFromSel(){if(!P.sel)return;P.alt=altAt(P.sel.lat,P.sel.lon);$('#simAlt').value=clamp(P.alt,0.5,40);$('#simAltVal').textContent=P.alt.toFixed(1);}
+$('#simClearSel').onclick=()=>{P.sel=null;P.alt=parseFloat($('#simAlt').value);$('#simAltVal').textContent=P.alt.toFixed(1);drawSide();drawDisk();};
 simBind('simH','h',1);simBind('simAlt','alt',1);simBind('simSlope','slope',0);simBind('simKmpp','kmpp',2);simBind('simAge','age',1);simBind('simMin','minpx',1);
 $('#simUseCal').onclick=()=>{const k=kmPerPx(S.imgName);if(!k){alert('測定画面で校正円を設定すると使えます');return;}P.kmpp=+k.toFixed(3);$('#simKmpp').value=P.kmpp;drawSide();drawDisk();};
 
@@ -640,6 +652,16 @@ function arrowH(c,x1,x2,y,col){c.strokeStyle=col;c.fillStyle=col;c.lineWidth=1.2
 function drawSide(){
   const d=window.devicePixelRatio||1,W=side.width/d,H=side.height/d;if(!W)return;const c=sctx;
   c.setTransform(d,0,0,d,0,0);c.clearRect(0,0,W,H);
+  $('#sidePlace').innerHTML=P.sel
+    ?`選んだ場所：緯度 ${P.sel.lat.toFixed(0)}°、経度 ${P.sel.lon.toFixed(0)}°（月齢 ${P.age.toFixed(1)} 日）→ 太陽高度 <b>${P.alt.toFixed(1)}°</b>`
+    :'太陽高度はスライダーで設定中。①の月をクリックすると、その場所の太陽高度になります。';
+  if(P.alt<=0){
+    c.fillStyle='#070a12';c.fillRect(0,0,W,H);c.fillStyle='#3a4154';c.fillRect(0,H-84,W,84);
+    c.fillStyle='#8d97ab';c.font='bold 15px system-ui,sans-serif';c.textAlign='center';
+    c.fillText('この場所は夜です（太陽が地平線の下）',W/2,H/2-10);c.textAlign='left';
+    $('#sideOut').innerHTML='<div class="kv"><span>判定</span><span><span class="badge b-bad">夜なので影は測れない</span></span></div>';
+    return;
+  }
   const h=P.h,a=P.alt*DEG,L=h/Math.tan(a),b=h/Math.tan(P.slope*DEG);
   const has=P.alt<P.slope;
   const xmin=-b*1.8-2,xmax=Math.max(has?L:b,b)*1.08+b*0.4+2;
@@ -729,6 +751,9 @@ function drawDisk(){
   const C={x:cx/d,y:cy/d,r:R/d};
   c.beginPath();c.arc(C.x,C.y,C.r,0,Math.PI*2);c.strokeStyle='rgba(255,255,255,.25)';c.lineWidth=1;c.stroke();
   c.font='12px system-ui,sans-serif';c.fillStyle='#8d97ab';c.textAlign='center';c.fillText('北',C.x,C.y-C.r-8);
+  if(P.sel){const la=P.sel.lat*DEG,lo=P.sel.lon*DEG;const mx=C.x+Math.cos(la)*Math.sin(lo)*C.r,my=C.y-Math.sin(la)*C.r;
+    c.lineWidth=2;c.strokeStyle='#000';c.beginPath();c.arc(mx,my,7,0,Math.PI*2);c.stroke();
+    c.lineWidth=1.5;c.strokeStyle='#5cc8ff';c.beginPath();c.arc(mx,my,7,0,Math.PI*2);c.moveTo(mx-12,my);c.lineTo(mx-4,my);c.moveTo(mx+4,my);c.lineTo(mx+12,my);c.moveTo(mx,my-12);c.lineTo(mx,my-4);c.moveTo(mx,my+4);c.lineTo(mx,my+12);c.stroke();}
   // sun direction
   c.fillStyle='#ffd65a';
   if(Math.abs(sl)>0.15){const dir=sl>0?1:-1;const ax=C.x+dir*(C.r+14),ay=C.y;
@@ -736,8 +761,14 @@ function drawDisk(){
     c.textAlign='center';c.fillText('太陽',ax+dir*8,ay-14);}
   else{c.fillText(cl>0?'太陽はほぼ地球の側（影がほとんどできない）':'太陽は月の裏側（ほとんど見えない）',C.x,C.y+C.r+22);}
   c.textAlign='left';
-  $('#diskInfo').innerHTML=`月齢 ${P.age.toFixed(1)} 日（${phaseName(P.age)}）<br><span style="color:#ffb347">■</span> 太陽高度 ${(amax/DEG).toFixed(1)}° 以下 ＝ 高さ ${P.h.toFixed(1)} km の山の影が ${P.minpx} 画素以上になる帯（①の設定を使用）`;
+  $('#diskInfo').innerHTML=`月齢 ${P.age.toFixed(1)} 日（${phaseName(P.age)}）<br><span style="color:#ffb347">■</span> 太陽高度 ${(amax/DEG).toFixed(1)}° 以下 ＝ 高さ ${P.h.toFixed(1)} km の山の影が ${P.minpx} 画素以上になる帯（②の設定を使用）`;
 }
+disk.addEventListener('click',e=>{
+  if(!diskGeom)return;const{R,cx,cy,d}=diskGeom;
+  const nx=(e.offsetX*d-cx)/R,ny=(cy-e.offsetY*d)/R;if(nx*nx+ny*ny>1)return;
+  const z=Math.sqrt(1-nx*nx-ny*ny);P.sel={lat:Math.asin(ny)/DEG,lon:Math.atan2(nx,z)/DEG};
+  syncAltFromSel();drawSide();drawDisk();
+});
 disk.addEventListener('pointermove',e=>{
   if(!diskGeom)return;const{R,cx,cy,d}=diskGeom;
   const nx=(e.offsetX*d-cx)/R,ny=(cy-e.offsetY*d)/R,r2=nx*nx+ny*ny;
