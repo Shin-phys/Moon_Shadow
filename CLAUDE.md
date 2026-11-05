@@ -86,7 +86,7 @@
 
 ## 6. 決定事項と制約
 
-- 太陽高度は**「画像から求める」を主な方法にする**（中身を生徒が理解できるため）。検算には **Virtual Moon Atlas**（Windows版）と NASA JPL Horizons（Webサイト）を使う。Virtual Moon Atlasには地点ごとの太陽高度の欄はない。Ephemerisタブの Colongitude（余経度 c）と Sub-solar latitude（βs）、Informationタブの Position（地形の緯度 β・経度 λ）を読み、下の正確な式で計算する（太陽の真下の経度 λs = 90° − c）。2026/11/17 18:00 で c=4.5°、βs=−1.5° となり、計算と一致を確認済みソフトの値をそのまま研究の主な値にはしない
+- 太陽高度は**「画像から求める」を主な方法にする**（中身を生徒が理解できるため）。検算には **Virtual Moon Atlas**（Windows版）と NASA JPL Horizons（Webサイト）を使う。Virtual Moon Atlasには地点ごとの太陽高度の欄はない。Ephemerisタブの Colongitude（余経度 c）と Sub-solar latitude（βs）、Informationタブの Position（地形の緯度 β・経度 λ）を読み、下の正確な式で計算する（太陽の真下の経度 λs = 90° − c）。2026/11/17 18:00 で c=4.5°、βs=−1.5° となり、計算と一致を確認済み。ソフトの値をそのまま研究の主な値にはしない
   - Horizonsで必要な数量：15（Sun sub-longitude & sub-latitude）、13（Target angular diameter）、14（Observer sub-lon & sub-lat）。時刻はUT（日本時間−9時間）
   - 正確な式：sin α = sin β sin βs + cos β cos βs cos(λ − λs)
 - 測定結果の検証用に **ImageJ（Fiji）** も使える。自作ツールの値を別ソフトで確かめる
